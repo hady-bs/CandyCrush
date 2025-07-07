@@ -2,14 +2,319 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="candycrush.css" />
-    <script src="candycrush.js"></script>
-    <title>Document</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Match 3 Game with Smooth Transition</title>
+    <style>
+      * {
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: sans-serif;
+        display: flex;
+        flex-direction: column-reverse;
+        align-items: center;
+        justify-content: center;
+        height: 90vh;
+        margin-top: 20px;
+      }
+      .score {
+        margin-bottom: 10px;
+        font-size: 20px;
+      }
+      .place {
+        display: grid;
+        grid-template-columns: repeat(8, 50px);
+        grid-template-rows: repeat(8, 50px);
+        gap: 5px;
+        user-select: none;
+        padding: 10px;
+        border-radius: 10px;
+        background-image: linear-gradient(to bottom, lightblue, lightgreen);
+      }
+      .item {
+        width: 50px;
+        height: 50px;
+        cursor: grab;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+      }
+      .item.dragging {
+        opacity: 0.5;
+      }
+      .item.swap-animate {
+        /* Slight scale effect on swap */
+        transform: scale(1.1);
+      }
+      .item.fading {
+        transform: scale(0);
+        opacity: 0;
+      }
+    </style>
   </head>
   <body>
+    <div class="score">score: 0</div>
     <div class="place"></div>
-    <div class="score">This is score</div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const Place = document.querySelector(".place");
+        const scoreDisplay = document.querySelector(".score");
+        const Colors = [
+          "imgs/apple.png",
+          "imgs/lemon.png",
+          "imgs/neww.png",
+          "imgs/orange.png",
+          "imgs/qeuey.png",
+        ];
+        const width = 8;
+        let randomColor = [];
+        let score = 0;
+
+        // Initialize grid data with random images
+        for (let i = 0; i < width * width; i++) {
+          randomColor.push(Colors[Math.floor(Math.random() * Colors.length)]);
+        }
+
+        // Create grid elements once
+        function createGridElements() {
+          Place.innerHTML = "";
+          for (let i = 0; i < width * width; i++) {
+            const img = document.createElement("img");
+            img.className = "item";
+            img.setAttribute("data-id", i);
+            img.setAttribute("draggable", true);
+            img.src = randomColor[i];
+            Place.appendChild(img);
+          }
+        }
+
+        createGridElements();
+
+        // Utility delay function
+        const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+
+        // Update score display
+        function updateScore() {
+          scoreDisplay.innerText = `score: ${score}`;
+        }
+
+        // Swap two items visually and in data
+        async function swapItems(id1, id2) {
+          if (id1 === id2) return false;
+          const img1 = Place.querySelector(`[data-id='${id1}']`);
+          const img2 = Place.querySelector(`[data-id='${id2}']`);
+
+          // Animate swap scale
+          img1.classList.add("swap-animate");
+          img2.classList.add("swap-animate");
+
+          // Swap in data array
+          [randomColor[id1], randomColor[id2]] = [
+            randomColor[id2],
+            randomColor[id1],
+          ];
+
+          // Update src
+          img1.src = randomColor[id1];
+          img2.src = randomColor[id2];
+
+          await delay(300);
+
+          img1.classList.remove("swap-animate");
+          img2.classList.remove("swap-animate");
+
+          return true;
+        }
+
+        // Check if two ids are adjacent
+        function isAdjacent(id1, id2) {
+          const adjacent = [
+            id1 - 1,
+            id1 + 1,
+            id1 - width,
+            id1 + width,
+            id1 + width + 1,
+            id1 + width - 1,
+            id1 - width - 1,
+            id1 - width + 1,
+          ];
+          return adjacent.includes(id2);
+        }
+
+        // Fade out matched items and remove them (set to "")
+        async function fadeAndRemove(indices) {
+          for (const i of indices) {
+            const img = Place.querySelector(`[data-id='${i}']`);
+            img.classList.add("fading");
+          }
+          await delay(300);
+          for (const i of indices) {
+            randomColor[i] = "";
+          }
+        }
+
+        // Move pieces down to fill empty spaces
+        function moveDown() {
+          for (let i = width * (width - 1) - 1; i >= 0; i--) {
+            if (randomColor[i + width] === "") {
+              randomColor[i + width] = randomColor[i];
+              randomColor[i] = "";
+            }
+          }
+        }
+
+        // Fill empty spaces with new random pieces
+        function fillEmpty() {
+          for (let i = 0; i < width * width; i++) {
+            if (randomColor[i] === "") {
+              randomColor[i] =
+                Colors[Math.floor(Math.random() * Colors.length)];
+            }
+          }
+        }
+
+        // Update all images src according to randomColor array
+        function updateAllImages() {
+          for (let i = 0; i < width * width; i++) {
+            const img = Place.querySelector(`[data-id='${i}']`);
+            img.src = randomColor[i];
+            img.classList.remove("fading");
+          }
+        }
+
+        // Check for matches of three or more horizontally or vertically
+        // Return array of matched indices
+        function checkMatches() {
+          let matched = new Set();
+
+          // Horizontal check
+          for (let row = 0; row < width; row++) {
+            for (let col = 0; col < width - 2; col++) {
+              const idx = row * width + col;
+              const color = randomColor[idx];
+              if (
+                color &&
+                color === randomColor[idx + 1] &&
+                color === randomColor[idx + 2]
+              ) {
+                matched.add(idx);
+                matched.add(idx + 1);
+                matched.add(idx + 2);
+                // Check longer matches horizontally
+                let k = idx + 3;
+                while (k < (row + 1) * width && randomColor[k] === color) {
+                  matched.add(k);
+                  k++;
+                }
+              }
+            }
+          }
+
+          // Vertical check
+          for (let col = 0; col < width; col++) {
+            for (let row = 0; row < width - 2; row++) {
+              const idx = row * width + col;
+              const color = randomColor[idx];
+              if (
+                color &&
+                color === randomColor[idx + width] &&
+                color === randomColor[idx + 2 * width]
+              ) {
+                matched.add(idx);
+                matched.add(idx + width);
+                matched.add(idx + 2 * width);
+                // Check longer matches vertically
+                let k = idx + 3 * width;
+                while (k < width * width && randomColor[k] === color) {
+                  matched.add(k);
+                  k += width;
+                }
+              }
+            }
+          }
+
+          return Array.from(matched);
+        }
+
+        // Variables to track dragging
+        let dragItem = null;
+        let dragId = null;
+
+        // Add drag event listeners to all items
+        function addDragListeners() {
+          Place.querySelectorAll(".item").forEach((item) => {
+            item.addEventListener("dragstart", (e) => {
+              dragItem = e.target;
+              dragId = parseInt(dragItem.getAttribute("data-id"));
+              dragItem.classList.add("dragging");
+            });
+            item.addEventListener("dragover", (e) => {
+              e.preventDefault();
+            });
+            item.addEventListener("drop", async (e) => {
+              e.preventDefault();
+              if (!dragItem) return;
+              const dropItem = e.target;
+              const dropId = parseInt(dropItem.getAttribute("data-id"));
+
+              if (isAdjacent(dragId, dropId)) {
+                // Swap visually and in data
+                const swapped = await swapItems(dragId, dropId);
+
+                // Check matches after swap
+                let matches = checkMatches();
+                if (matches.length === 0) {
+                  // No match, swap back
+                  await swapItems(dragId, dropId);
+                } else {
+                  // Process matches with animation
+                  await processMatches();
+                }
+              }
+            });
+            item.addEventListener("dragend", (e) => {
+              if (dragItem) dragItem.classList.remove("dragging");
+              dragItem = null;
+              dragId = null;
+            });
+          });
+        }
+
+        // Process matches: fade out, drop, fill, repeat until no matches
+        async function processMatches() {
+          while (true) {
+            const matches = checkMatches();
+            if (matches.length === 0) break;
+
+            // Increase score
+            score += matches.length;
+            updateScore();
+
+            // Fade out matched items
+            await fadeAndRemove(matches);
+            updateAllImages();
+
+            // Move pieces down to fill gaps
+            moveDown();
+            updateAllImages();
+
+            // Fill empty spaces with new pieces
+            fillEmpty();
+            updateAllImages();
+
+            // Small delay before next check
+            await delay(200);
+          }
+        }
+
+        // Initial setup
+        addDragListeners();
+        updateScore();
+
+        // Initial match clear if any
+        processMatches();
+      });
+    </script>
   </body>
 </html>
